@@ -482,6 +482,25 @@ var pathDeductionFixtures = map[string][]pathDeductionFixture{
 			mb:   maybeGitSource{url: mkurl("https://go.googlesource.com/net")},
 		},
 	},
+	"private": {
+		// Private registry imports
+		{
+			in:   "p/code.company.com/gophers/go-logger",
+			root: "code.company.com/gophers/go-logger",
+			mb: maybeSources{
+				maybePrivateSource{url: mkurl("https://code.company.com/gophers/go-logger")},
+				maybePrivateSource{url: mkurl("http://code.company.com/gophers/go-logger")},
+			},
+		},
+		{
+			in:   "p/my.code/toy",
+			root: "my.code/toy",
+			mb: maybeSources{
+				maybePrivateSource{url: mkurl("https://my.code/toy")},
+				maybePrivateSource{url: mkurl("http://my.code/toy")},
+			},
+		},
+	},
 }
 
 func TestDeduceFromPath(t *testing.T) {
@@ -507,6 +526,8 @@ func TestDeduceFromPath(t *testing.T) {
 				deducer = apacheDeducer{regexp: apacheRegex}
 			case "vcsext":
 				deducer = vcsExtensionDeducer{regexp: vcsExtensionRegex}
+			case "private":
+				deducer = privateDeducer{regexp: privateRegex}
 			default:
 				// Should just be the vanity imports, which we do elsewhere
 				t.Log("skipping")
@@ -531,6 +552,8 @@ func TestDeduceFromPath(t *testing.T) {
 					return fmt.Sprintf("%T: %s", tmb, ufmt(tmb.url))
 				case maybeGopkginSource:
 					return fmt.Sprintf("%T: %s (v%v) %s ", tmb, tmb.opath, tmb.major, ufmt(tmb.url))
+				case maybePrivateSource:
+					return fmt.Sprintf("%T: %s", tmb, ufmt(tmb.url))
 				default:
 					t.Errorf("Unknown maybeSource type: %T", mb)
 				}

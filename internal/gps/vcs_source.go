@@ -514,6 +514,17 @@ func (s *hgSource) listVersions(ctx context.Context) ([]PairedVersion, error) {
 	return vlist, nil
 }
 
+// privateSource is a repository registry implementation that should work with
+// all services using the registry implementation.
+type privateSource struct {
+	baseVCSSource
+}
+
+func (s *privateSource) listVersions(ctx context.Context) (vlist []PairedVersion, err error) {
+	// TODO
+	return nil, nil
+}
+
 type repo struct {
 	// Object for direct repo interaction
 	r ctxRepo

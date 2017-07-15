@@ -268,3 +268,48 @@ func (m maybeHgSource) try(ctx context.Context, cachedir string, c singleSourceC
 func (m maybeHgSource) getURL() string {
 	return m.url.String()
 }
+
+type maybePrivateSource struct {
+	url *url.URL
+}
+
+func (m maybePrivateSource) try(ctx context.Context, cachedir string, c singleSourceCache, superv *supervisor) (source, sourceState, error) {
+	ustr := m.url.String()
+
+	r, err := newCtxRepo(PrivateType, ustr, sourceCachePath(cachedir, ustr))
+
+	if err != nil {
+		return nil, 0, unwrapVcsErr(err)
+	}
+
+	src := &privateSource{
+		baseVCSSource: baseVCSSource{
+			repo: r,
+		},
+	}
+
+	// Pinging invokes the same action as calling listVersions, so just do that.
+	var vl []PairedVersion
+	err = superv.do(ctx, "private:lv:maybe", ctListVersions, func(ctx context.Context) (err error) {
+		if vl, err = src.listVersions(ctx); err != nil {
+			return fmt.Errorf("remote repository at %s does not exist, or is inaccessible", ustr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	c.storeVersionMap(vl, true)
+	state := sourceIsSetUp | sourceExistsUpstream | sourceHasLatestVersionList
+
+	if r.CheckLocal() {
+		state |= sourceExistsLocally
+	}
+
+	return src, state, nil
+}
+
+func (m maybePrivateSource) getURL() string {
+	return m.url.String()
+}

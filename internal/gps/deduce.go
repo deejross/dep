@@ -21,10 +21,11 @@ import (
 )
 
 var (
-	gitSchemes = []string{"https", "ssh", "git", "http"}
-	bzrSchemes = []string{"https", "bzr+ssh", "bzr", "http"}
-	hgSchemes  = []string{"https", "ssh", "http"}
-	svnSchemes = []string{"https", "http", "svn", "svn+ssh"}
+	gitSchemes     = []string{"https", "ssh", "git", "http"}
+	bzrSchemes     = []string{"https", "bzr+ssh", "bzr", "http"}
+	hgSchemes      = []string{"https", "ssh", "http"}
+	svnSchemes     = []string{"https", "http", "svn", "svn+ssh"}
+	privateSchemes = []string{"https", "http"}
 )
 
 const gopkgUnstableSuffix = "-unstable"
@@ -45,6 +46,8 @@ func validateVCSScheme(scheme, typ string) bool {
 		schemes = hgSchemes
 	case "svn":
 		schemes = svnSchemes
+	case "private", "tgz", "zip":
+		schemes = privateSchemes
 	default:
 		panic(fmt.Sprint("unsupported vcs type", scheme))
 	}
@@ -73,6 +76,7 @@ var (
 	jazzRegex         = regexp.MustCompile(`^(?P<root>hub\.jazz\.net(/git/[a-z0-9]+/[A-Za-z0-9_.\-]+))((?:/[A-Za-z0-9_.\-]+)*)$`)
 	apacheRegex       = regexp.MustCompile(`^(?P<root>git\.apache\.org(/[a-z0-9_.\-]+\.git))((?:/[A-Za-z0-9_.\-]+)*)$`)
 	vcsExtensionRegex = regexp.MustCompile(`^(?P<root>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?/[A-Za-z0-9_.\-/~]*?\.(?P<vcs>bzr|git|hg|svn))((?:/[A-Za-z0-9_.\-]+)*)$`)
+	privateRegex      = regexp.MustCompile(`^(?P<root>p?(/?[A-Za-z0-9-._/]+))$`)
 )
 
 // Other helper regexes
@@ -91,6 +95,7 @@ func pathDeducerTrie() *deducerTrie {
 	dxt.Insert("git.launchpad.net/", launchpadGitDeducer{regexp: glpRegex})
 	dxt.Insert("hub.jazz.net/", jazzDeducer{regexp: jazzRegex})
 	dxt.Insert("git.apache.org/", apacheDeducer{regexp: apacheRegex})
+	dxt.Insert("p/", privateDeducer{regexp: privateRegex})
 
 	return dxt
 }
@@ -539,6 +544,50 @@ func (m vcsExtensionDeducer) deduceSource(path string, u *url.URL) (maybeSource,
 	}
 }
 
+type privateDeducer struct {
+	regexp *regexp.Regexp
+}
+
+func (m privateDeducer) stripPrefix(path string) string {
+	if path[0:2] == "p/" {
+		return path[:2]
+	}
+	return path
+}
+
+func (m privateDeducer) deduceRoot(path string) (string, error) {
+	v := m.regexp.FindStringSubmatch(path)
+	if v == nil {
+		return "", fmt.Errorf("%s not a valid path", path)
+	}
+
+	return v[1], nil
+}
+
+func (m privateDeducer) deduceSource(path string, u *url.URL) (maybeSource, error) {
+	v := m.regexp.FindStringSubmatch(path)
+	if v == nil || len(path) < 3 {
+		return nil, fmt.Errorf("%s not a valid path", path)
+	}
+
+	paths := strings.SplitN(m.stripPrefix(path), "/", 2)
+	u.Host = paths[0]
+	u.Path = paths[1]
+
+	if u.Path[0] != byte('/') {
+		u.Path = "/" + u.Path
+	}
+
+	mb := make(maybeSources, len(privateSchemes))
+	for k, scheme := range privateSchemes {
+		u2 := *u
+		u2.Scheme = scheme
+		mb[k] = maybePrivateSource{url: &u2}
+	}
+
+	return mb, nil
+}
+
 // A deducer takes an import path and inspects it to determine where the
 // corresponding project root should be. It applies a number of matching
 // techniques, eventually falling back to an HTTP request for go-get metadata if
@@ -796,6 +845,11 @@ func normalizeURI(p string) (u *url.URL, newpath string, err error) {
 			//RawPath: m[3],
 		}
 	} else {
+		// handle private imports
+		if len(p) > 2 && p[:2] == "p/" {
+			p = p[2:]
+		}
+
 		u, err = url.Parse(p)
 		if err != nil {
 			return nil, "", errors.Errorf("%q is not a valid URI", p)

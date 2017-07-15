@@ -16,6 +16,9 @@ import (
 	"github.com/Masterminds/vcs"
 )
 
+// PrivateType repo Type.
+const PrivateType vcs.Type = "private"
+
 type ctxRepo interface {
 	vcs.Repo
 	get(context.Context) error
@@ -53,6 +56,9 @@ func getVCSRepo(s vcs.Type, ustr, path string) (r ctxRepo, err error) {
 		var repo *vcs.HgRepo
 		repo, err = vcs.NewHgRepo(ustr, path)
 		r = &hgRepo{repo}
+	case PrivateType:
+		repo := &PrivateRepo{remote: ustr, local: path}
+		r = &privateRepo{repo}
 	}
 
 	return
@@ -307,4 +313,34 @@ func (r *svnRepo) CommitInfo(id string) (*vcs.CommitInfo, error) {
 	}
 
 	return ci, nil
+}
+
+type privateRepo struct {
+	*PrivateRepo
+}
+
+func (r *privateRepo) get(ctx context.Context) error {
+	return r.Get()
+}
+
+func (r *privateRepo) fetch(ctx context.Context) error {
+	latest, err := r.Version()
+	if err != nil {
+		return err
+	}
+
+	current, err := r.Current()
+	if err != nil {
+		return err
+	}
+
+	if latest != current {
+		return r.Update()
+	}
+
+	return nil
+}
+
+func (r *privateRepo) updateVersion(ctx context.Context, v string) error {
+	return r.UpdateVersion(v)
 }
