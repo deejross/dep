@@ -174,7 +174,11 @@ func (out *dotOutput) BasicFooter() {
 }
 
 func (out *dotOutput) BasicLine(bs *BasicStatus) {
-	out.g.createNode(bs.ProjectRoot, bs.Version.String(), bs.Children)
+	version := formatVersion(bs.Revision)
+	if bs.Version != nil {
+		version = formatVersion(bs.Version)
+	}
+	out.g.createNode(bs.ProjectRoot, version, bs.Children)
 }
 
 func (out *dotOutput) MissingHeader()                {}
@@ -257,8 +261,7 @@ func runStatusAll(ctx *dep.Ctx, out outputter, p *dep.Project, sm gps.SourceMana
 	var digestMismatch, hasMissingPkgs bool
 
 	if p.Lock == nil {
-		// TODO if we have no lock file, do...other stuff
-		return digestMismatch, hasMissingPkgs, nil
+		return digestMismatch, hasMissingPkgs, errors.Errorf("no Gopkg.lock found. Run `dep ensure` to generate lock file")
 	}
 
 	// While the network churns on ListVersions() requests, statically analyze
