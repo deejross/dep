@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const godepJSONName = "Godeps.json"
+const godepPath = "Godeps" + string(os.PathSeparator) + "Godeps.json"
 
 type godepImporter struct {
 	json godepJSON
@@ -50,7 +50,7 @@ func (g *godepImporter) Name() string {
 }
 
 func (g *godepImporter) HasDepMetadata(dir string) bool {
-	y := filepath.Join(dir, "Godeps", godepJSONName)
+	y := filepath.Join(dir, godepPath)
 	if _, err := os.Stat(y); err != nil {
 		return false
 	}
@@ -69,7 +69,7 @@ func (g *godepImporter) Import(dir string, pr gps.ProjectRoot) (*dep.Manifest, *
 
 func (g *godepImporter) load(projectDir string) error {
 	g.logger.Println("Detected godep configuration files...")
-	j := filepath.Join(projectDir, "Godeps", godepJSONName)
+	j := filepath.Join(projectDir, godepPath)
 	if g.verbose {
 		g.logger.Printf("  Loading %s", j)
 	}
@@ -108,7 +108,7 @@ func (g *godepImporter) convert(pr gps.ProjectRoot) (*dep.Manifest, *dep.Lock, e
 		pkg.ImportPath = string(ip)
 
 		// Check if it already existing in locked projects
-		if projectExistsInLock(lock, pkg.ImportPath) {
+		if projectExistsInLock(lock, ip) {
 			continue
 		}
 
@@ -186,16 +186,4 @@ func (g *godepImporter) buildLockedProject(pkg godepPackage, manifest *dep.Manif
 	f.LogFeedback(g.logger)
 
 	return lp
-}
-
-// projectExistsInLock checks if the given import path already existing in
-// locked projects.
-func projectExistsInLock(l *dep.Lock, ip string) bool {
-	for _, lp := range l.P {
-		if ip == string(lp.Ident().ProjectRoot) {
-			return true
-		}
-	}
-
-	return false
 }

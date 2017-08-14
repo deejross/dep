@@ -21,10 +21,12 @@ import (
 const ManifestName = "Gopkg.toml"
 
 // Errors
-var errInvalidConstraint = errors.New("\"constraint\" must be a TOML array of tables")
-var errInvalidOverride = errors.New("\"override\" must be a TOML array of tables")
-var errInvalidRequired = errors.New("\"required\" must be a TOML list of strings")
-var errInvalidIgnored = errors.New("\"ignored\" must be a TOML list of strings")
+var (
+	errInvalidConstraint = errors.New("\"constraint\" must be a TOML array of tables")
+	errInvalidOverride   = errors.New("\"override\" must be a TOML array of tables")
+	errInvalidRequired   = errors.New("\"required\" must be a TOML list of strings")
+	errInvalidIgnored    = errors.New("\"ignored\" must be a TOML list of strings")
+)
 
 // Manifest holds manifest file data and implements gps.RootManifest.
 type Manifest struct {
@@ -333,6 +335,19 @@ func (m *Manifest) IgnoredPackages() map[string]bool {
 	}
 
 	return mp
+}
+
+// HasConstraintsOn checks if the manifest contains either constraints or
+// overrides on the provided ProjectRoot.
+func (m *Manifest) HasConstraintsOn(root gps.ProjectRoot) bool {
+	if _, has := m.Constraints[root]; has {
+		return true
+	}
+	if _, has := m.Ovr[root]; has {
+		return true
+	}
+
+	return false
 }
 
 // RequiredPackages returns a set of import paths to require.
